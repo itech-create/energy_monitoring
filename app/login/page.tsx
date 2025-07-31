@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'; // For navigation in Next.js
 import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth'; // Firebase Auth functions
 import { auth } from '@/lib/firebase'; // Assuming you have your Firebase config in '@/lib/firebase'
 import { Zap } from 'lucide-react'; // For the logo icon
+import { FirebaseError } from 'firebase/app'; // Import FirebaseError for type checking
 
 export default function LoginPage() {
   // State variables for form inputs and UI feedback
@@ -42,25 +43,29 @@ export default function LoginPage() {
       // Attempt to sign in with email and password using Firebase Auth
       await signInWithEmailAndPassword(auth, email, password);
       // If successful, the onAuthStateChanged listener will handle redirection
-    } catch (error: any) {
+    } catch (error: unknown) { // Changed 'any' to 'unknown' for better type safety
       // Handle various Firebase authentication errors
       let errorMessage = 'An unknown error occurred. Please try again.';
-      switch (error.code) {
-        case 'auth/invalid-email':
-          errorMessage = 'Invalid email address format.';
-          break;
-        case 'auth/user-disabled':
-          errorMessage = 'This account has been disabled.';
-          break;
-        case 'auth/user-not-found':
-        case 'auth/wrong-password':
-          errorMessage = 'Incorrect email or password.';
-          break;
-        case 'auth/too-many-requests':
-          errorMessage = 'Too many failed login attempts. Please try again later.';
-          break;
-        default:
-          errorMessage = error.message; // Fallback to Firebase's default error message
+      if (error instanceof FirebaseError) { // Check if the error is a FirebaseError
+        switch (error.code) {
+          case 'auth/invalid-email':
+            errorMessage = 'Invalid email address format.';
+            break;
+          case 'auth/user-disabled':
+            errorMessage = 'This account has been disabled.';
+            break;
+          case 'auth/user-not-found':
+          case 'auth/wrong-password':
+            errorMessage = 'Incorrect email or password.';
+            break;
+          case 'auth/too-many-requests':
+            errorMessage = 'Too many failed login attempts. Please try again later.';
+            break;
+          default:
+            errorMessage = error.message; // Fallback to Firebase's default error message
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message; // Handle generic JS errors
       }
       setLoginError(errorMessage); // Set the error message to display to the user
       setLoading(false); // Stop loading
@@ -137,7 +142,7 @@ export default function LoginPage() {
 
         {/* Optional: Link to a signup page (if you create one) */}
         <p className="text-center text-sm text-gray-400">
-          Don't have an account?{' '}
+          Don&apos;t have an account?{' '} {/* Escaped apostrophe */}
           <a href="/signup" className="text-blue-400 hover:underline">
             Sign up here
           </a>
