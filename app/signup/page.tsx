@@ -1,160 +1,176 @@
-"use client";
+"use client"; // This directive marks the component as a Client Component
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { UserPlus } from "lucide-react";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { doc, setDoc } from "firebase/firestore"; // add this
-import { db } from "@/lib/firebase"; // make sure this is imported
-import { FirebaseError } from "firebase/app";
-
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation'; // For navigation in Next.js
+import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth'; // Firebase Auth functions
+import { auth } from '@/lib/firebase'; // Assuming you have your Firebase config in '@/lib/firebase'
+import { Zap } from 'lucide-react'; // For the logo icon
+import { FirebaseError } from 'firebase/app'; // Import FirebaseError for type checking
 
 export default function SignupPage() {
-  const [credentials, setCredentials] = useState({ email: "", password: "" });
-  const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
-  const router = useRouter();
+  // State variables for form inputs and UI feedback
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(true); // For initial auth check
+  const [signupError, setSignupError] = useState<string | null>(null); // To display signup errors
 
-//   const handleSignup = async (e: React.FormEvent) => {
+  const router = useRouter(); // Initialize Next.js router for redirection
 
-//     e.preventDefault();
-//     const { email, password } = credentials;
-
-//     if (!email || !password) {
-//       setMessage({ type: "error", text: "Please enter both email and password." });
-//       return;
-//     }
-
-//     setIsLoading(true);
-//     setMessage(null);
-
-//     try {
-//       await createUserWithEmailAndPassword(auth, email, password);
-//       setMessage({ type: "success", text: "Account created successfully! Redirecting..." });
-
-//       setTimeout(() => {
-//         router.push("/dashboard"); // Or redirect to login: router.push("/login")
-//       }, 1500);
-//     } catch (error: any) {
-//       let msg = "Signup failed. Please try again.";
-//       if (error.code === "auth/email-already-in-use") msg = "Email already in use.";
-//       else if (error.code === "auth/invalid-email") msg = "Invalid email format.";
-//       else if (error.code === "auth/weak-password") msg = "Password should be at least 6 characters.";
-
-//       setMessage({ type: "error", text: msg });
-//       console.error(error);
-//     }
-
-//     setIsLoading(false);
-//   };
-
-const handleSignup = async (e: React.FormEvent) => {
-  e.preventDefault();
-  const { email, password } = credentials;
-
-  if (!email || !password) {
-    setMessage({ type: "error", text: "Please enter both email and password." });
-    return;
-  }
-
-  setIsLoading(true);
-  setMessage(null);
-
-  try {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-
-    // Save user info in Firestore
-    await setDoc(doc(db, "users", user.uid), {
-      uid: user.uid,
-      email: user.email,
-      createdAt: new Date().toISOString(),
+  // useEffect hook to check authentication status on component mount
+  // If a user is already logged in, redirect them to the dashboard
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // User is signed in, redirect to dashboard
+        router.replace('/dashboard'); // Use replace to prevent going back to signup page
+      } else {
+        // No user is signed in, show the signup form
+        setLoading(false);
+      }
     });
 
-    setMessage({ type: "success", text: "Account created successfully! Redirecting..." });
+    // Cleanup function: unsubscribe from the auth listener when the component unmounts
+    return () => unsubscribe();
+  }, [router]); // Dependency array includes router to ensure effect re-runs if router object changes
 
-    setTimeout(() => {
-      router.push("/dashboard");
-    }, 1500);
-  } catch (error: unknown) {
-    const firebaseError = error as FirebaseError;
-    let msg = "Signup failed. Please try again.";
-    if (firebaseError.code === "auth/email-already-in-use") msg = "Email already in use.";
-    else if (firebaseError.code === "auth/invalid-email") msg = "Invalid email format.";
-    else if (firebaseError.code === "auth/weak-password") msg = "Password should be at least 6 characters.";
+  // Function to handle the signup form submission
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault(); // Prevent default form submission behavior (page reload)
+    setSignupError(null); // Clear any previous errors
 
-    setMessage({ type: "error", text: msg });
-    console.error(error);
+    // Basic client-side validation for password match
+    if (password !== confirmPassword) {
+      setSignupError("Passwords do not match.");
+      return;
+    }
+
+    setLoading(true); // Show loading indicator during signup attempt
+
+    try {
+      // Attempt to create a new user with email and password using Firebase Auth
+      await createUserWithEmailAndPassword(auth, email, password);
+      // If successful, the onAuthStateChanged listener will handle redirection
+      // You might also want to show a success message or redirect to login page explicitly
+      alert('Account created successfully! You are now logged in.');
+      router.replace('/dashboard'); // Or '/login' if you want them to log in after signup
+    } catch (error: unknown) { // Changed 'any' to 'unknown' for better type safety
+      // Handle various Firebase authentication errors
+      let errorMessage = 'An unknown error occurred during signup. Please try again.';
+      if (error instanceof FirebaseError) { // Check if the error is a FirebaseError
+        switch (error.code) {
+          case 'auth/email-already-in-use':
+            errorMessage = 'The email address is already in use by another account.';
+            break;
+          case 'auth/invalid-email':
+            errorMessage = 'The email address is not valid.';
+            break;
+          case 'auth/operation-not-allowed':
+            errorMessage = 'Email/password sign-up is not enabled. Please contact support.';
+            break;
+          case 'auth/weak-password':
+            errorMessage = 'The password is too weak. Please choose a stronger password.';
+            break;
+          default:
+            errorMessage = error.message; // Fallback to Firebase's default error message
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message; // Handle generic JS errors
+      }
+      setSignupError(errorMessage); // Set the error message to display to the user
+      setLoading(false); // Stop loading
+    }
+  };
+
+  // If loading (checking auth status), display a loading message
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="text-xl animate-pulse">Checking authentication status...</div>
+      </div>
+    );
   }
 
-  setIsLoading(false);
-};
-
-
+  // Render the signup form
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 relative">
-      <div className="absolute inset-0 bg-gradient-to-tr from-yellow-200 via-white to-blue-200 opacity-40" />
-
-      <div className="w-full max-w-md bg-white border border-gray-200 shadow-md p-6 rounded-lg relative z-10">
-        <div className="flex flex-col items-center space-y-3 mb-6">
-          <div className="p-3 bg-yellow-100 rounded-full">
-            <UserPlus className="h-8 w-8 text-yellow-600" />
+    <div className="min-h-screen bg-black text-white font-sans flex items-center justify-center p-4">
+      <div className="bg-gray-900 p-8 rounded-xl shadow-lg border border-gray-800 w-full max-w-md space-y-6">
+        {/* Logo and Title */}
+        <div className="flex flex-col items-center space-y-3">
+          <div className="p-3 bg-blue-800 rounded-full">
+            <Zap className="h-8 w-8 text-blue-400" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-800">Create PowerPal Account</h1>
-          <p className="text-sm text-gray-500">Sign up to monitor your energy usage</p>
+          <h1 className="text-3xl font-bold text-white">Create Your PowerPal Account</h1>
+          <p className="text-sm text-gray-400">Join us to start managing your energy</p>
         </div>
 
+        {/* Signup Form */}
         <form onSubmit={handleSignup} className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-              Email
+            <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
+              Email Address
             </label>
             <input
-              id="email"
               type="email"
-              value={credentials.email}
-              onChange={(e) => setCredentials((prev) => ({ ...prev, email: e.target.value }))}
-              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-              placeholder="Enter your email"
+              id="email"
+              placeholder="your.email@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-gray-800 text-white px-4 py-2 rounded-md border border-gray-700 focus:ring-blue-500 focus:border-blue-500"
+              required
             />
           </div>
-
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-1">
               Password
             </label>
             <input
-              id="password"
               type="password"
-              value={credentials.password}
-              onChange={(e) => setCredentials((prev) => ({ ...prev, password: e.target.value }))}
-              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-              placeholder="Enter your password"
+              id="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-gray-800 text-white px-4 py-2 rounded-md border border-gray-700 focus:ring-blue-500 focus:border-blue-500"
+              required
+              minLength={6} // Firebase requires a minimum password length
+            />
+          </div>
+          <div>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-1">
+              Confirm Password
+            </label>
+            <input
+              type="password"
+              id="confirmPassword"
+              placeholder="••••••••"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full bg-gray-800 text-white px-4 py-2 rounded-md border border-gray-700 focus:ring-blue-500 focus:border-blue-500"
+              required
             />
           </div>
 
+          {/* Display Signup Error */}
+          {signupError && (
+            <p className="text-red-500 text-sm text-center">{signupError}</p>
+          )}
+
+          {/* Signup Button */}
           <button
             type="submit"
-            disabled={isLoading}
-            className="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-2 px-4 rounded-md transition-all disabled:opacity-60"
+            className="w-full bg-green-600 text-white py-2 rounded-md font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading} // Disable button while loading
           >
-            {isLoading ? "Creating account..." : "Sign Up"}
+            {loading ? 'Creating Account...' : 'Sign Up'}
           </button>
         </form>
 
-        {message && (
-          <div
-            className={`mt-4 text-center text-sm font-medium ${
-              message.type === "error" ? "text-red-600" : "text-green-600"
-            }`}
-          >
-            {message.text}
-          </div>
-        )}
-
-        <p className="mt-6 text-center text-xs text-gray-400">
-          Already have an account? <a href="/login" className="text-yellow-600 hover:underline">Login here</a>
+        {/* Link to Login page */}
+        <p className="text-center text-sm text-gray-400">
+          Already have an account?{' '}
+          <a href="/login" className="text-blue-400 hover:underline">
+            Login here
+          </a>
         </p>
       </div>
     </div>
