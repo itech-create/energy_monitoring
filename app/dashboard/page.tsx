@@ -1,3 +1,5 @@
+"use client"; // <--- ADD THIS LINE AT THE VERY TOP
+
 import { useState, useEffect } from 'react';
 import { Zap, Power, Activity, TrendingUp, Settings, Gauge } from 'lucide-react';
 
@@ -5,9 +7,11 @@ import { Zap, Power, Activity, TrendingUp, Settings, Gauge } from 'lucide-react'
 // IMPORTANT: These variables must be set in your Vercel project settings
 // (or .env.local file for local development)
 // For Vite, environment variables should be prefixed with VITE_
-const THINGSPEAK_CHANNEL_ID = import.meta.env.VITE_THINGSPEAK_CHANNEL_ID as string;
-const THINGSPEAK_READ_API_KEY = import.meta.env.VITE_THINGSPEAK_READ_API_KEY as string;
-const THINGSPEAK_WRITE_API_KEY = import.meta.env.VITE_THINGSPEAK_WRITE_API_KEY as string;
+// For Next.js, environment variables are typically accessed via process.env.NEXT_PUBLIC_VAR_NAME
+// If you are using Next.js, you should change import.meta.env to process.env
+const THINGSPEAK_CHANNEL_ID = process.env.NEXT_PUBLIC_THINGSPEAK_CHANNEL_ID as string;
+const THINGSPEAK_READ_API_KEY = process.env.NEXT_PUBLIC_THINGSPEAK_READ_API_KEY as string;
+const THINGSPEAK_WRITE_API_KEY = process.env.NEXT_PUBLIC_THINGSPEAK_WRITE_API_KEY as string;
 // --- End Configuration ---
 
 // Define the type for a single device/load
@@ -31,7 +35,7 @@ export default function App() {
   useEffect(() => {
     // Validate that API keys are loaded
     if (!THINGSPEAK_CHANNEL_ID || !THINGSPEAK_READ_API_KEY || !THINGSPEAK_WRITE_API_KEY) {
-      console.error("ThingSpeak API keys are not configured. Please set VITE_THINGSPEAK_CHANNEL_ID, VITE_THINGSPEAK_READ_API_KEY, and VITE_THINGSPEAK_WRITE_API_KEY environment variables.");
+      console.error("ThingSpeak API keys are not configured. Please set NEXT_PUBLIC_THINGSPEAK_CHANNEL_ID, NEXT_PUBLIC_THINGSPEAK_READ_API_KEY, and NEXT_PUBLIC_THINGSPEAK_WRITE_API_KEY environment variables.");
       setLoading(false);
       return;
     }
@@ -64,9 +68,9 @@ export default function App() {
           const load1Current = parseFloat(latestFeed.field1) || 0; // Assuming Field 1 for Load 1 Current
           const mainsVoltage = parseFloat(latestFeed.field2) || 0; // Assuming Field 2 for Mains Voltage (shared)
           const load1Power = parseFloat(latestFeed.field3) || 0;   // Assuming Field 3 for Load 1 Power
-          const fetchedPermissibleLimit = parseFloat(latestFeed.field6) || 1000; // Assuming Field 6 for Permissible Power Limit, default 1000W
-          const load2Current = parseFloat(latestFeed.field4) || 0; // Assuming Field 4 for Load 2 Current
-          const load2Power = parseFloat(latestFeed.field5) || 0;   // Assuming Field 5 for Load 2 Power
+          const fetchedPermissibleLimit = parseFloat(latestFeed.field4) || 1000; // Assuming Field 4 for Permissible Power Limit, default 1000W
+          const load2Current = parseFloat(latestFeed.field5) || 0; // Assuming Field 5 for Load 2 Current
+          const load2Power = parseFloat(latestFeed.field6) || 0;   // Assuming Field 6 for Load 2 Power
           const load3Current = parseFloat(latestFeed.field7) || 0; // Assuming Field 7 for Load 3 Current
           const load3Power = parseFloat(latestFeed.field8) || 0;   // Assuming Field 8 for Load 3 Power
 
