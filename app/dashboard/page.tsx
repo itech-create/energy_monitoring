@@ -1,7 +1,34 @@
-"use client"; // <--- ADD THIS LINE AT THE VERY TOP
+// app/dashboard/page.tsx
+"use client"; // Keep this at the top
 
-import { useState, useEffect } from 'react';
-import { Zap, Power, Activity, TrendingUp, Settings, Gauge } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { onAuthStateChanged } from "firebase/auth"; // Import onAuthStateChanged
+import { auth } from "@/lib/firebase"; // Import auth
+
+// ... (other imports and Device type) ...
+
+export default function Dashboard() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  // ... (other states) ...
+
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        router.replace("/login"); // Redirect to login if no user
+      } else {
+        // User is authenticated, proceed with data fetching
+        // ... (your ThingSpeak data fetching logic) ...
+        setLoading(false); // Set loading to false once auth check is done and data fetching starts
+      }
+    });
+
+    return () => unsubscribeAuth();
+  }, [router]); // Keep router in dependency array
+
+  // ... (rest of your dashboard component) ...
+}
 
 // --- ThingSpeak Configuration (Using Environment Variables) ---
 // IMPORTANT: These variables must be set in your Vercel project settings
