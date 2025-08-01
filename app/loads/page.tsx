@@ -17,7 +17,6 @@ type Device = {
 export default function LoadManagementPage() {
   const router = useRouter();
   const [loading, setLoading] = useState<boolean>(true);
-  const [userId, setUserId] = useState<string | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
   const [newDevice, setNewDevice] = useState<Device>({ id: '', name: '', field: 0 });
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
@@ -33,7 +32,6 @@ export default function LoadManagementPage() {
         router.replace('/login');
       } else {
         const uid = user.uid;
-        setUserId(uid);
 
         // Subscribe to Firestore for changes in the user's devices
         const devicesCollectionRef = collection(db, `users/${uid}/loads`);
@@ -70,12 +68,13 @@ export default function LoadManagementPage() {
   // --- Firestore Actions for Loads ---
   const handleAddDevice = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userId || !newDevice.name || !newDevice.field) {
+    const user = auth.currentUser;
+    if (!user || !newDevice.name || !newDevice.field) {
       alert("Please provide a name and select a field.");
       return;
     }
     try {
-      const devicesCollectionRef = collection(db, `users/${userId}/loads`);
+      const devicesCollectionRef = collection(db, `users/${user.uid}/loads`);
       await addDoc(devicesCollectionRef, { name: newDevice.name, field: newDevice.field });
       setNewDevice({ id: '', name: '', field: 0 }); // Reset form
       setShowAddForm(false);
@@ -86,9 +85,10 @@ export default function LoadManagementPage() {
   };
 
   const handleEditDevice = async () => {
-    if (!userId || !editForm) return;
+    const user = auth.currentUser;
+    if (!user || !editForm) return;
     try {
-      const deviceDocRef = doc(db, `users/${userId}/loads`, editForm.id);
+      const deviceDocRef = doc(db, `users/${user.uid}/loads`, editForm.id);
       await setDoc(deviceDocRef, { name: editForm.name, field: editForm.field });
       setEditingDevice(null);
     } catch (error) {
@@ -98,10 +98,11 @@ export default function LoadManagementPage() {
   };
 
   const handleDeleteDevice = async (id: string) => {
-    if (!userId) return;
+    const user = auth.currentUser;
+    if (!user) return;
     if (window.confirm("Are you sure you want to delete this device?")) {
       try {
-        const deviceDocRef = doc(db, `users/${userId}/loads`, id);
+        const deviceDocRef = doc(db, `users/${user.uid}/loads`, id);
         await deleteDoc(deviceDocRef);
       } catch (error) {
         console.error("Error deleting device:", error);

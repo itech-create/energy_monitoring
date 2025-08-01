@@ -42,7 +42,6 @@ type DisplayDevice = Device & {
 export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState<boolean>(true);
-  const [userId, setUserId] = useState<string | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
   const [thingSpeakData, setThingSpeakData] = useState<ThingSpeakData>({
     field1: 0, field2: 0, field3: 0, field4: 0, field5: 0, field6: 0, field7: 0, field8: 0
@@ -56,11 +55,8 @@ export default function DashboardPage() {
       if (!user) {
         router.replace('/login');
       } else {
-        const uid = user.uid;
-        setUserId(uid);
-
         // Subscribe to Firestore for changes in the user's devices
-        const devicesCollectionRef = collection(db, `users/${uid}/loads`);
+        const devicesCollectionRef = collection(db, `users/${user.uid}/loads`);
         const unsubscribeFirestore = onSnapshot(devicesCollectionRef, (snapshot) => {
           const fetchedDevices = snapshot.docs.map(doc => ({
             id: doc.id,
