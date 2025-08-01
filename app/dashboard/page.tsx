@@ -277,7 +277,7 @@ export default function DashboardPage() {
         {/* Load Cards Display */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {displayDevices.length === 0 && (
-            <p className="text-center text-gray-500 col-span-2">No loads configured. Please go to the 'Manage Loads' page to add a new load.</p>
+            <p className="text-center text-gray-500 col-span-2">No loads configured. Please go to the &apos;Manage Loads&apos; page to add a new load.</p>
           )}
 
           {displayDevices.map((item) => {

@@ -195,7 +195,7 @@ export default function LoadManagementPage() {
         {/* List of Existing Loads */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {devices.length === 0 && (
-            <p className="text-center text-gray-500 col-span-full">No loads configured. Click 'Add New Load' to get started!</p>
+            <p className="text-center text-gray-500 col-span-full">No loads configured. Click &apos;Add New Load&apos; to get started!</p>
           )}
 
           {devices.map((item) => (
