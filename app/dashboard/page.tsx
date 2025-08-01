@@ -209,7 +209,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <button
-            onClick={() => router.push('/loads')}
+            onClick={() => router.push('/add-load')}
             className="flex items-center px-4 py-2 text-sm font-medium bg-gray-700 rounded-md hover:bg-gray-600 transition"
           >
             Manage Loads
