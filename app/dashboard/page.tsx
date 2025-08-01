@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { onSnapshot, collection } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { Zap, Power, Activity, TrendingUp, Settings, Gauge, ChevronRight } from 'lucide-react';
 
@@ -281,7 +281,7 @@ export default function DashboardPage() {
         {/* Load Cards Display */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {displayDevices.length === 0 && (
-            <p className="text-center text-gray-500 col-span-2">No loads configured. Please go to the "Manage Loads" page to add a new load.</p>
+            <p className="text-center text-gray-500 col-span-2">No loads configured. Please go to the 'Manage Loads' page to add a new load.</p>
           )}
 
           {displayDevices.map((item) => {
