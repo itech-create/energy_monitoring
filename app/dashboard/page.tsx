@@ -1,41 +1,13 @@
-// app/dashboard/page.tsx
-"use client"; // Keep this at the top
+"use client"; // Marks this as a Client Component
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { onAuthStateChanged } from "firebase/auth"; // Import onAuthStateChanged
-import { auth } from "@/lib/firebase"; // Import auth
-
-// ... (other imports and Device type) ...
-
-export default function Dashboard() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  // ... (other states) ...
-
-  useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        router.replace("/login"); // Redirect to login if no user
-      } else {
-        // User is authenticated, proceed with data fetching
-        // ... (your ThingSpeak data fetching logic) ...
-        setLoading(false); // Set loading to false once auth check is done and data fetching starts
-      }
-    });
-
-    return () => unsubscribeAuth();
-  }, [router]); // Keep router in dependency array
-
-  // ... (rest of your dashboard component) ...
-}
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation'; // For redirection
+import { onAuthStateChanged } from 'firebase/auth'; // For checking auth state
+import { auth } from '@/lib/firebase'; // Assuming your firebase config is here
+import { Zap, Power, Activity, TrendingUp, Settings, Gauge } from 'lucide-react';
 
 // --- ThingSpeak Configuration (Using Environment Variables) ---
 // IMPORTANT: These variables must be set in your Vercel project settings
-// (or .env.local file for local development)
-// For Vite, environment variables should be prefixed with VITE_
-// For Next.js, environment variables are typically accessed via process.env.NEXT_PUBLIC_VAR_NAME
-// If you are using Next.js, you should change import.meta.env to process.env
 const THINGSPEAK_CHANNEL_ID = process.env.NEXT_PUBLIC_THINGSPEAK_CHANNEL_ID as string;
 const THINGSPEAK_READ_API_KEY = process.env.NEXT_PUBLIC_THINGSPEAK_READ_API_KEY as string;
 const THINGSPEAK_WRITE_API_KEY = process.env.NEXT_PUBLIC_THINGSPEAK_WRITE_API_KEY as string;
@@ -51,131 +23,122 @@ type Device = {
   efficiency: number; // Placeholder, as ThingSpeak fields don't directly provide this
 };
 
-export default function App() {
+export default function DashboardPage() {
   // State variables for managing UI and data
   const [loading, setLoading] = useState<boolean>(true); // Indicates if data is being loaded
   const [realtimeData, setRealtimeData] = useState<Device[]>([]); // Stores the processed energy data for display
   const [permissibleLimit, setPermissibleLimit] = useState<number>(1000); // Global power limit, default to 1000W
   const [newLimitInput, setNewLimitInput] = useState<string>('1000'); // State for the input field to set new limit
 
-  // useEffect hook to fetch data on component mount and periodically
+  const router = useRouter();
+
+  // useEffect hook to handle authentication and data fetching
   useEffect(() => {
+    // Check authentication state first
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        // No user is signed in, redirect to login page
+        router.replace('/login');
+      } else {
+        // User is signed in, proceed with data fetching
+        setLoading(false);
+      }
+    });
+
     // Validate that API keys are loaded
     if (!THINGSPEAK_CHANNEL_ID || !THINGSPEAK_READ_API_KEY || !THINGSPEAK_WRITE_API_KEY) {
-      console.error("ThingSpeak API keys are not configured. Please set NEXT_PUBLIC_THINGSPEAK_CHANNEL_ID, NEXT_PUBLIC_THINGSPEAK_READ_API_KEY, and NEXT_PUBLIC_THINGSPEAK_WRITE_API_KEY environment variables.");
+      console.error("ThingSpeak API keys are not configured. Please set NEXT_PUBLIC_THINGSPEAK environment variables.");
       setLoading(false);
       return;
     }
 
     // Asynchronous function to fetch data from ThingSpeak
     const fetchEnergyData = async () => {
-      setLoading(true); // Set loading state to true while fetching
+      // Show loading state if we are authenticated and fetching data for the first time
+      setLoading(true);
 
       try {
-        // Construct the URL to fetch the latest entry from the ThingSpeak channel
-        // 'results=1' fetches only the most recent data point
         const url = `https://api.thingspeak.com/channels/${THINGSPEAK_CHANNEL_ID}/feeds.json?api_key=${THINGSPEAK_READ_API_KEY}&results=1`;
         const response = await fetch(url);
-
-        // Check if the HTTP response was successful
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-
-        // Parse the JSON response from ThingSpeak
         const data = await response.json();
 
-        // Ensure data.feeds exists and contains at least one entry
         if (data.feeds && data.feeds.length > 0) {
-          const latestFeed = data.feeds[0]; // Get the latest data entry
+          const latestFeed = data.feeds[0];
 
           // Extract and parse data from ThingSpeak fields
-          // IMPORTANT: Adjust field numbers (e.g., field1, field2) based on your ESP32's ThingSpeak mapping
-          // Using '|| 0' to default to 0 if parsing fails or field is null/undefined
-          const load1Current = parseFloat(latestFeed.field1) || 0; // Assuming Field 1 for Load 1 Current
-          const mainsVoltage = parseFloat(latestFeed.field2) || 0; // Assuming Field 2 for Mains Voltage (shared)
-          const load1Power = parseFloat(latestFeed.field3) || 0;   // Assuming Field 3 for Load 1 Power
-          const fetchedPermissibleLimit = parseFloat(latestFeed.field4) || 1000; // Assuming Field 4 for Permissible Power Limit, default 1000W
-          const load2Current = parseFloat(latestFeed.field5) || 0; // Assuming Field 5 for Load 2 Current
-          const load2Power = parseFloat(latestFeed.field6) || 0;   // Assuming Field 6 for Load 2 Power
-          const load3Current = parseFloat(latestFeed.field7) || 0; // Assuming Field 7 for Load 3 Current
-          const load3Power = parseFloat(latestFeed.field8) || 0;   // Assuming Field 8 for Load 3 Power
+          const load1Current = parseFloat(latestFeed.field1) || 0;
+          const mainsVoltage = parseFloat(latestFeed.field2) || 0;
+          const load1Power = parseFloat(latestFeed.field3) || 0;
+          const fetchedPermissibleLimit = parseFloat(latestFeed.field4) || 1000;
+          const load2Current = parseFloat(latestFeed.field5) || 0;
+          const load2Power = parseFloat(latestFeed.field6) || 0;
+          const load3Current = parseFloat(latestFeed.field7) || 0;
+          const load3Power = parseFloat(latestFeed.field8) || 0;
 
-
-          // Initialize an array to hold our processed Device objects
           const extractedLoads: Device[] = [];
-
-          // Construct Device objects for each load
-          // 'name' is hardcoded here as ThingSpeak fields don't provide dynamic names per load.
-          // 'status' is derived based on power consumption (e.g., active if power > 5W).
-          // 'efficiency' is a placeholder; it would require more complex calculation or a fixed value.
           extractedLoads.push({
-            name: "Living Room Light", // Example name for Load 1
+            name: "Living Room Light",
             power: load1Power,
             voltage: mainsVoltage,
             current: load1Current,
-            status: (load1Power > 5) ? "active" : "standby", // Threshold for active/standby
-            efficiency: 90, // Placeholder efficiency
+            status: (load1Power > 5) ? "active" : "standby",
+            efficiency: 90,
           });
 
           extractedLoads.push({
-            name: "Kitchen Appliance", // Example name for Load 2
+            name: "Kitchen Appliance",
             power: load2Power,
             voltage: mainsVoltage,
             current: load2Current,
-            status: (load2Power > 5) ? "active" : "standby", // Threshold for active/standby
-            efficiency: 85, // Placeholder efficiency
+            status: (load2Power > 5) ? "active" : "standby",
+            efficiency: 85,
           });
 
           extractedLoads.push({
-            name: "Bedroom Fan", // Example name for Load 3
+            name: "Bedroom Fan",
             power: load3Power,
             voltage: mainsVoltage,
             current: load3Current,
-            status: (load3Power > 5) ? "active" : "standby", // Threshold for active/standby
-            efficiency: 80, // Placeholder efficiency
+            status: (load3Power > 5) ? "active" : "standby",
+            efficiency: 80,
           });
 
-          // Update the state with the fetched data and permissible limit
           setRealtimeData(extractedLoads);
           setPermissibleLimit(fetchedPermissibleLimit);
-          setNewLimitInput(fetchedPermissibleLimit.toString()); // Update input field with fetched limit
-
+          setNewLimitInput(fetchedPermissibleLimit.toString());
         } else {
-          console.warn("ThingSpeak: No data feeds found in the response. Ensure your ESP32 is sending data and check your channel/API key.");
-          setRealtimeData([]); // Clear data if no feeds are found
+          console.warn("ThingSpeak: No data feeds found.");
+          setRealtimeData([]);
         }
       } catch (error) {
         console.error("❌ ThingSpeak data fetch error:", error);
-        setRealtimeData([]); // Clear data on error
+        setRealtimeData([]);
       } finally {
-        setLoading(false); // Set loading state to false after fetch attempt (success or failure)
+        setLoading(false);
       }
     };
 
-    // Initial data fetch when the component mounts
-    fetchEnergyData();
+    // Set up an interval to periodically fetch data
+    const intervalId = setInterval(fetchEnergyData, 20000);
 
-    // Set up an interval to periodically fetch data (e.g., every 20 seconds)
-    // This matches the typical ESP32 data upload interval to avoid unnecessary API calls.
-    const intervalId = setInterval(fetchEnergyData, 20000); // 20000 milliseconds = 20 seconds
-
-    // Cleanup function: This runs when the component unmounts or before the effect re-runs.
-    // It's crucial to clear the interval to prevent memory leaks.
-    return () => clearInterval(intervalId);
-  }, []); // Empty dependency array ensures this effect runs only once on mount
+    // Cleanup function: unsubscribe from auth and clear interval
+    return () => {
+      unsubscribeAuth();
+      clearInterval(intervalId);
+    };
+  }, [router]);
 
   // Function to handle updating the permissible power limit on ThingSpeak
   const updatePermissibleLimit = async () => {
-    const newLimit = parseFloat(newLimitInput); // Parse the value from the input field
-
-    // Validate the input
+    const newLimit = parseFloat(newLimitInput);
     if (isNaN(newLimit) || newLimit < 0) {
       alert('Please enter a valid non-negative number for the new limit.');
       return;
     }
 
-    // Validate that API keys are configured before attempting to write
     if (!THINGSPEAK_CHANNEL_ID || !THINGSPEAK_WRITE_API_KEY) {
       alert("ThingSpeak Write API key is not configured. Cannot update limit.");
       console.error("ThingSpeak Write API key is missing.");
@@ -183,46 +146,32 @@ export default function App() {
     }
 
     try {
-      // Construct the URL for ThingSpeak Write API to update Field 4 (permissible power)
-      // Using POST method for updates is generally recommended.
       const url = `https://api.thingspeak.com/update?api_key=${THINGSPEAK_WRITE_API_KEY}&field4=${newLimit}`;
       const response = await fetch(url, { method: 'POST' });
-
-      // Check if the ThingSpeak update request was successful
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-
-      const data = await response.text(); // ThingSpeak returns the entry ID on success (or 0 on failure)
-
-      // If the update was successful (entry ID > 0)
+      const data = await response.text();
       if (parseInt(data) > 0) {
-        alert(`Permissible limit updated to ${newLimit}W. The ESP32 will pick this up shortly.`);
-        setPermissibleLimit(newLimit); // Update local state immediately
-        // Optionally, trigger a full data fetch to ensure all displayed values are consistent
-        // fetchEnergyData(); // Uncomment if you want immediate full refresh after setting limit
+        alert(`Permissible limit updated to ${newLimit}W.`);
+        setPermissibleLimit(newLimit);
       } else {
-        alert('Failed to update permissible limit on ThingSpeak. Please check your Write API key or channel settings.');
+        alert('Failed to update permissible limit on ThingSpeak.');
       }
     } catch (error) {
       console.error("Error setting permissible limit:", error);
-      alert('An error occurred while trying to set the limit. Please try again.');
+      alert('An error occurred while trying to set the limit.');
     }
   };
 
-  // Calculate total consumption and estimated cost for display
-  // Using reduce to sum power from all available devices
   const totalConsumption = realtimeData.reduce((sum, item) => sum + item.power, 0);
-  // Assuming a fixed cost per kWh, and converting total power (W) to kWh for cost calculation
-  // For instantaneous cost, it's typically (Power in kW * Cost per kWh)
-  // If totalConsumption is in Watts, convert to kW (divide by 1000) for kWh cost calculation
-  const cost = (totalConsumption / 1000) * 0.18; // Assuming $0.18/kWh
+  const cost = (totalConsumption / 1000) * 0.18;
 
-  // Display loading message while data is being fetched
+  // Display loading message while data is being fetched or auth is checked
   if (loading) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <div className="text-xl animate-pulse">Loading energy data from ThingSpeak...</div>
+        <div className="text-xl animate-pulse">Loading dashboard...</div>
       </div>
     );
   }
@@ -241,7 +190,6 @@ export default function App() {
               <p className="text-sm text-gray-400">ESP32 Energy Monitor</p>
             </div>
           </div>
-          {/* Settings button for the limit control - can be a placeholder or link to more settings */}
           <div className="flex space-x-2">
             <button className="flex items-center px-4 py-2 text-sm font-medium border border-gray-700 rounded hover:bg-gray-800 transition">
               <Settings className="h-4 w-4 mr-2" />
@@ -268,7 +216,6 @@ export default function App() {
               <p className="text-sm font-medium text-gray-400">Average Voltage</p>
               <Power className="h-5 w-5 text-purple-400" />
             </div>
-            {/* Display average voltage if multiple loads have voltage, or just mainsVoltage */}
             <div className="text-3xl font-bold text-white">
               {realtimeData.length > 0 ? realtimeData[0].voltage.toFixed(2) : '0.00'} V
             </div>
@@ -312,12 +259,9 @@ export default function App() {
         {/* Load Cards Display */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {realtimeData.map((item, index) => {
-            // Calculate load factor relative to the permissible limit
-            // Ensure permissibleLimit is not zero to prevent division by zero
             const loadFactor = permissibleLimit > 0 ? Math.round((item.power / permissibleLimit) * 100) : 0;
-            const displayLoadFactor = Math.min(100, Math.max(0, loadFactor)); // Cap between 0 and 100%
+            const displayLoadFactor = Math.min(100, Math.max(0, loadFactor));
 
-            // Determine status color based on active/standby status
             const statusColor =
               item.status === "active"
                 ? "bg-green-900 text-green-400 border border-green-500"
