@@ -1,8 +1,7 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp, FirebaseApp } from "firebase/app";
-import { getAnalytics, isSupported, Analytics } from "firebase/analytics";
-import { getAuth, Auth } from "firebase/auth";
-import { getFirestore, Firestore } from "firebase/firestore";
+// lib/firebase.ts
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 // TODO: Replace with your project's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -16,28 +15,6 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase
-const app: FirebaseApp = initializeApp(firebaseConfig);
-
-// Initialize Firebase services
-const auth: Auth = getAuth(app);
-const db: Firestore = getFirestore(app);
-
-// Initialize Analytics only if running in a browser environment
-let analytics: Analytics | null = null;
-if (typeof window !== "undefined") {
-  isSupported()
-    .then((yes) => {
-      if (yes) {
-        analytics = getAnalytics(app);
-        console.log("Firebase Analytics initialized.");
-      } else {
-        console.log("Firebase Analytics is not supported in this environment.");
-      }
-    })
-    .catch((error) => {
-      console.error("Failed to check Firebase Analytics support:", error);
-    });
-}
-
-export { app, auth, db, analytics };
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
