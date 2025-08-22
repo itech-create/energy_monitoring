@@ -2,83 +2,81 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth, db } from "@/lib/firebase";
-import { doc, setDoc, collection } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { v4 as uuidv4 } from "uuid";
 
 export default function AddLoadPage() {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [field, setField] = useState<number>(1);
-  const [loading, setLoading] = useState(false);
+  const [loadName, setLoadName] = useState("");
+  const [selectedField, setSelectedField] = useState("1");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleAddLoad = async () => {
-    setLoading(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
 
-    onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        alert("You must be logged in to add a load.");
-        setLoading(false);
-        return;
-      }
+    try {
+      const newLoad = {
+        id: uuidv4(),
+        name: loadName,
+        field: selectedField,
+      };
 
-      try {
-        const loadId = crypto.randomUUID(); // ✅ replaced uuidv4()
-        const userLoadsRef = collection(db, `users/${user.uid}/loads`);
-        await setDoc(doc(userLoadsRef, loadId), {
-          id: loadId,
-          name,
-          field,
-        });
+      // Save to localStorage (or replace with API call if backend exists)
+      const existing = JSON.parse(localStorage.getItem("loads") || "[]");
+      existing.push(newLoad);
+      localStorage.setItem("loads", JSON.stringify(existing));
 
-        alert("Load added successfully!");
-        router.push("/");
-      } catch (error) {
-        console.error("Error adding load:", error);
-        alert("Failed to add load. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    });
+      // Redirect back to dashboard
+      router.push("/dashboard");
+    } catch (error) {
+      console.error("❌ Error adding load:", error);
+      alert("Failed to add load. Please check console logs.");
+    } finally {
+      setIsLoading(false); // ✅ ensures button resets
+    }
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center">
-      <div className="bg-gray-900 p-8 rounded-lg shadow-lg w-full max-w-md space-y-6">
-        <h1 className="text-2xl font-bold text-center">Add New Load</h1>
+    <div className="flex justify-center items-center h-screen">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-gray-900 text-white p-6 rounded-lg w-96 shadow-lg"
+      >
+        <h2 className="text-xl font-bold mb-4">Add New Load</h2>
 
-        <div>
-          <label className="block text-sm text-gray-400 mb-1">Load Name</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full p-2 rounded bg-gray-800 border border-gray-700 text-white"
-            placeholder="e.g., Refrigerator"
-          />
-        </div>
+        <label className="block mb-2">Load Name</label>
+        <input
+          type="text"
+          value={loadName}
+          onChange={(e) => setLoadName(e.target.value)}
+          placeholder="e.g., Refrigerator"
+          className="w-full p-2 mb-4 rounded bg-gray-800 border border-gray-600"
+          required
+        />
 
-        <div>
-          <label className="block text-sm text-gray-400 mb-1">ThingSpeak Field</label>
-          <select
-            value={field}
-            onChange={(e) => setField(Number(e.target.value))}
-            className="w-full p-2 rounded bg-gray-800 border border-gray-700 text-white"
-          >
-            <option value={1}>Field 1 (Current 1 / Power 1)</option>
-            <option value={5}>Field 5 (Current 2 / Power 2)</option>
-            <option value={7}>Field 7 (Current 3 / Power 3)</option>
-          </select>
-        </div>
+        <label className="block mb-2">ThingSpeak Field</label>
+        <select
+          value={selectedField}
+          onChange={(e) => setSelectedField(e.target.value)}
+          className="w-full p-2 mb-4 rounded bg-gray-800 border border-gray-600"
+        >
+          <option value="1">Field 1 (Current 1 / Power 1)</option>
+          <option value="2">Field 2 (Voltage)</option>
+          <option value="3">Field 3 (Power 1)</option>
+          <option value="5">Field 5 (Current 2 / Power 2)</option>
+          <option value="6">Field 6 (Power 2)</option>
+          <option value="7">Field 7 (Current 3 / Power 3)</option>
+          <option value="8">Field 8 (Power 3)</option>
+        </select>
 
         <button
-          onClick={handleAddLoad}
-          disabled={loading}
-          className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 rounded text-white font-medium disabled:opacity-50"
+          type="submit"
+          disabled={isLoading}
+          className="w-full bg-blue-600 hover:bg-blue-700 p-2 rounded"
         >
-          {loading ? "Adding..." : "Add Load"}
+          {isLoading ? "Adding..." : "Add Load"}
         </button>
-      </div>
+      </form>
     </div>
   );
 }
