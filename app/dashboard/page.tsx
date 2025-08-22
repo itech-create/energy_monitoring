@@ -12,16 +12,12 @@ import {
 } from "lucide-react";
 
 // --- ThingSpeak Configuration ---
-const THINGSPEAK_CHANNEL_ID =
-  process.env.NEXT_PUBLIC_THINGSPEAK_CHANNEL_ID as string;
-const THINGSPEAK_READ_API_KEY =
-  process.env.NEXT_PUBLIC_THINGSPEAK_READ_API_KEY as string;
-const THINGSPEAK_WRITE_API_KEY =
-  process.env.NEXT_PUBLIC_THINGSPEAK_WRITE_API_KEY as string;
+const THINGSPEAK_CHANNEL_ID = process.env.NEXT_PUBLIC_THINGSPEAK_CHANNEL_ID as string;
+const THINGSPEAK_READ_API_KEY = process.env.NEXT_PUBLIC_THINGSPEAK_READ_API_KEY as string;
+const THINGSPEAK_WRITE_API_KEY = process.env.NEXT_PUBLIC_THINGSPEAK_WRITE_API_KEY as string;
 
 // --- ESP32 Local API Config ---
-const ESP32_BASE_URL =
-  process.env.NEXT_PUBLIC_ESP32_BASE_URL || "http://192.168.0.120"; // Change to ESP32 IP
+const ESP32_BASE_URL = process.env.NEXT_PUBLIC_ESP32_BASE_URL || "http://10.97.54.34";
 
 // Define a type for a load
 type Device = {
@@ -56,7 +52,7 @@ export default function DashboardPage() {
     field1: 0,
     field2: 0,
     field3: 0,
-    field4: 0,
+    field4: 1000,
     field5: 0,
     field6: 0,
     field7: 0,
@@ -64,7 +60,7 @@ export default function DashboardPage() {
   });
   const [newLimitInput, setNewLimitInput] = useState<string>("1000");
 
-  // --- Relay Control Function ---
+  // --- NEW: Relay Control Function ---
   const setRelayState = async (
     channel: number,
     state: "on" | "off" | "auto"
@@ -90,10 +86,13 @@ export default function DashboardPage() {
         const unsubscribeFirestore = onSnapshot(
           devicesCollectionRef,
           (snapshot) => {
-            const fetchedDevices = snapshot.docs.map((doc) => ({
-              id: doc.id,
-              ...(doc.data() as Omit<Device, "id">),
-            })) as Device[];
+            const fetchedDevices = snapshot.docs.map(
+              (doc) =>
+                ({
+                  id: doc.id,
+                  ...doc.data(),
+                } as Device)
+            );
             setDevices(fetchedDevices);
             setLoading(false);
           },
@@ -142,7 +141,9 @@ export default function DashboardPage() {
           field7: parseFloat(latestFeed.field7) || 0,
           field8: parseFloat(latestFeed.field8) || 0,
         });
-        setNewLimitInput(parseFloat(latestFeed.field4).toFixed(0));
+        setNewLimitInput(
+          (parseFloat(latestFeed.field4) || 1000).toFixed(0)
+        );
       }
     } catch (error) {
       console.error("❌ ThingSpeak data fetch error:", error);
@@ -188,7 +189,7 @@ export default function DashboardPage() {
   const displayDevices: DisplayDevice[] = devices.map((device) => {
     let power = 0;
     let current = 0;
-    const voltage = thingSpeakData.field2; // ✅ const
+    const voltage = thingSpeakData.field2;
 
     switch (device.field) {
       case 1:
@@ -246,6 +247,68 @@ export default function DashboardPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-10 space-y-10">
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-gray-900 p-6 rounded-xl shadow border border-gray-800">
+            <h3 className="text-gray-400 text-sm font-medium">Total Power</h3>
+            <p className="text-2xl font-bold text-white mt-2">
+              {totalConsumption.toFixed(2)} W
+            </p>
+            <p className="text-xs text-gray-500">
+              Real-time aggregate power
+            </p>
+          </div>
+          <div className="bg-gray-900 p-6 rounded-xl shadow border border-gray-800">
+            <h3 className="text-gray-400 text-sm font-medium">Average Voltage</h3>
+            <p className="text-2xl font-bold text-white mt-2">
+              {thingSpeakData.field2.toFixed(2)} V
+            </p>
+            <p className="text-xs text-gray-500">Instantaneous mains voltage</p>
+          </div>
+          <div className="bg-gray-900 p-6 rounded-xl shadow border border-gray-800">
+            <h3 className="text-gray-400 text-sm font-medium">
+              Estimated Cost (per hour)
+            </h3>
+            <p className="text-2xl font-bold text-white mt-2">
+              ${cost.toFixed(2)}
+            </p>
+            <p className="text-xs text-gray-500">
+              @ $0.18/kWh (based on current power)
+            </p>
+          </div>
+        </div>
+
+        {/* Global Permissible Power Limit */}
+        <div className="bg-gray-900 p-6 rounded-xl shadow border border-gray-800 space-y-4">
+          <h3 className="text-lg font-semibold text-white">
+            Global Permissible Power Limit
+          </h3>
+          <div className="flex items-center space-x-4">
+            <span className="text-gray-300">
+              Current Limit:{" "}
+              <span className="text-blue-400 font-semibold">
+                {thingSpeakData.field4} W
+              </span>
+            </span>
+            <input
+              type="number"
+              value={newLimitInput}
+              onChange={(e) => setNewLimitInput(e.target.value)}
+              className="bg-gray-800 border border-gray-700 text-white px-3 py-1 rounded w-24"
+            />
+            <button
+              onClick={updatePermissibleLimit}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1 rounded"
+            >
+              Update Limit
+            </button>
+          </div>
+          <p className="text-xs text-gray-500">
+            This limit is sent to the ESP32 and controls when individual loads are
+            automatically disconnected to manage consumption.
+          </p>
+        </div>
+
         {/* Load Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {displayDevices.map((item) => {
@@ -272,9 +335,7 @@ export default function DashboardPage() {
                     <Gauge className="h-5 w-5 text-blue-400" />
                     <span>{item.name}</span>
                   </div>
-                  <span
-                    className={`text-xs px-2 py-1 rounded-md ${statusColor}`}
-                  >
+                  <span className={`text-xs px-2 py-1 rounded-md ${statusColor}`}>
                     {item.status.toUpperCase()}
                   </span>
                 </div>
