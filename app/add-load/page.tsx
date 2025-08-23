@@ -4,74 +4,35 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { v4 as uuid } from "uuid";
 
 export default function AddLoadPage() {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [field, setField] = useState<number>(1);
+  const [field, setField] = useState(1);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const add = async () => {
     const user = auth.currentUser;
-    if (!user) {
-      alert("You must be logged in.");
-      return;
-    }
-
-    try {
-      // ✅ Replace uuidv4() with built-in crypto.randomUUID()
-      const id = crypto.randomUUID();
-
-      const docRef = doc(db, `users/${user.uid}/loads/${id}`);
-      await setDoc(docRef, {
-        name,
-        field,
-      });
-
-      alert("Load added successfully!");
-      router.push("/dashboard");
-    } catch (err) {
-      console.error("Error adding load:", err);
-      alert("Failed to add load.");
-    }
+    if (!user) return router.replace("/login");
+    const id = uuid();
+    await setDoc(doc(db, `users/${user.uid}/loads/${id}`), { name, field });
+    router.push("/dashboard");
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-gray-900 p-6 rounded-lg shadow space-y-4 w-full max-w-md"
-      >
-        <h1 className="text-xl font-bold">Add Load</h1>
+    <div className="min-h-screen bg-black text-white p-6">
+      <h1 className="text-2xl font-bold mb-4">Add Load</h1>
+      <div className="space-y-4 max-w-md">
         <div>
           <label className="block text-sm mb-1">Name</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            className="w-full bg-gray-800 border border-gray-700 px-3 py-2 rounded text-white"
-          />
+          <input className="w-full bg-gray-800 rounded px-3 py-2" value={name} onChange={e=>setName(e.target.value)} />
         </div>
         <div>
-          <label className="block text-sm mb-1">Field Number</label>
-          <input
-            type="number"
-            value={field}
-            onChange={(e) => setField(Number(e.target.value))}
-            required
-            className="w-full bg-gray-800 border border-gray-700 px-3 py-2 rounded text-white"
-          />
+          <label className="block text-sm mb-1">ThingSpeak Field (1,5,7)</label>
+          <input type="number" className="w-full bg-gray-800 rounded px-3 py-2" value={field} onChange={e=>setField(parseInt(e.target.value||"1"))} />
         </div>
-        <button
-          type="submit"
-          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded w-full"
-        >
-          Save
-        </button>
-      </form>
+        <button onClick={add} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">Save</button>
+      </div>
     </div>
   );
 }
