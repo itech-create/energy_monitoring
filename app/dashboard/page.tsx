@@ -52,6 +52,15 @@ export default function DashboardPage() {
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold text-white">Dashboard</h1>
 
+      <div className="flex justify-end">
+  <button
+    onClick={() => router.push("/add-load")}
+    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded shadow"
+  >
+    ➕ Add Load
+  </button>
+</div>
+
       {/* Global Limit */}
       <div className="bg-gray-900 p-4 rounded-lg shadow">
         <h2 className="text-lg font-semibold text-white">
