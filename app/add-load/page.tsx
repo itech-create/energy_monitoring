@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
-import { v4 as uuid } from "uuid";
+const id = crypto.randomUUID();
 
 export default function AddLoadPage() {
   const router = useRouter();
