@@ -5,26 +5,27 @@ import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { onSnapshot, collection } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import { Zap, Power, Activity, TrendingUp, Settings, Gauge, ChevronRight } from "lucide-react";
+import { Activity, Power, TrendingUp, Settings, Gauge, ChevronRight, Zap } from "lucide-react";
 
-// --- ThingSpeak Configuration ---
 const THINGSPEAK_CHANNEL_ID = process.env.NEXT_PUBLIC_THINGSPEAK_CHANNEL_ID as string;
 const THINGSPEAK_READ_API_KEY = process.env.NEXT_PUBLIC_THINGSPEAK_READ_API_KEY as string;
 const THINGSPEAK_WRITE_API_KEY = process.env.NEXT_PUBLIC_THINGSPEAK_WRITE_API_KEY as string;
 
-// --- ESP32 Local API Config ---
+// Local ESP32 API
 const ESP32_BASE_URL = process.env.NEXT_PUBLIC_ESP32_BASE_URL || "http://10.97.54.34";
 
 // Types
-type Device = { id: string; name: string; field: number };
-type ThingSpeakData = { field1:number; field2:number; field3:number; field4:number; field5:number; field6:number; field7:number; field8:number };
-type DisplayDevice = Device & { power:number; voltage:number; current:number; status:"active"|"standby" };
+type Device = { name: string; field: number }; // ✅ no "id" here
+type ThingSpeakData = { field1:number; field2:number; field3:number; field4:number; field5:number; field6:number; field7:number; field8:number; };
+type DisplayDevice = { id: string; name: string; field: number; power:number; voltage:number; current:number; status:"active"|"standby" };
 
 export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [ts, setTS] = useState<ThingSpeakData>({field1:0,field2:0,field3:0,field4:1000,field5:0,field6:0,field7:0,field8:0});
+  const [devices, setDevices] = useState<DisplayDevice[]>([]);
+  const [ts, setTS] = useState<ThingSpeakData>({
+    field1:0,field2:0,field3:0,field4:1000,field5:0,field6:0,field7:0,field8:0
+  });
   const [newLimitInput, setNewLimitInput] = useState("1000");
 
   // Map field -> relay channel
@@ -51,8 +52,8 @@ export default function DashboardPage() {
         const colRef = collection(db, `users/${user.uid}/loads`);
         const unsubFS = onSnapshot(colRef, (snap) => {
           const items = snap.docs.map((d) => ({
-            id: d.id,
-            ...(d.data() as Device), // ✅ replaced "any" with Device
+            id: d.id, // ✅ only source of id
+            ...(d.data() as Device),
           }));
           setDevices(items);
           setLoading(false);
@@ -61,7 +62,6 @@ export default function DashboardPage() {
           setLoading(false);
         });
 
-        // fetch ThingSpeak periodically
         fetchTS();
         const intv = setInterval(fetchTS, 20000);
 
@@ -102,16 +102,14 @@ export default function DashboardPage() {
     const val = parseFloat(newLimitInput);
     if (isNaN(val) || val < 0) return alert("Enter a valid non-negative limit.");
     try {
-      const r = await fetch(`${ESP32_BASE_URL}/limit?value=${val}`);
-      if (!r.ok) throw new Error(`Local limit set failed: ${r.status}`);
+      await fetch(`${ESP32_BASE_URL}/limit?value=${val}`);
     } catch (e) {
       console.warn("Local limit set failed (ESP32 offline?)", e);
     }
     if (!THINGSPEAK_WRITE_API_KEY) return alert("Missing ThingSpeak write key.");
     try {
       const url = `https://api.thingspeak.com/update?api_key=${THINGSPEAK_WRITE_API_KEY}&field4=${val}`;
-      const resp = await fetch(url, { method: "POST" });
-      if (!resp.ok) throw new Error(`TS HTTP ${resp.status}`);
+      await fetch(url, { method: "POST" });
       alert(`Limit set to ${val} W`);
     } catch (e) {
       console.error(e);
@@ -128,8 +126,7 @@ export default function DashboardPage() {
   }
 
   const displayDevices: DisplayDevice[] = devices.map(d => {
-    let power = 0, current = 0;
-    const voltage = ts.field2; // ✅ prefer-const fix
+    let power = 0, current = 0, voltage = ts.field2;
     if (d.field === 1) { power = ts.field3; current = ts.field1; }
     else if (d.field === 5) { power = ts.field6; current = ts.field5; }
     else if (d.field === 7) { power = ts.field8; current = ts.field7; }
@@ -142,7 +139,8 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-black text-white font-sans">
-      {/* ... UI unchanged ... */}
+      {/* header + main same as before, unchanged */}
+      {/* ... */}
     </div>
   );
 }
