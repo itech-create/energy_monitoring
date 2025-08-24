@@ -3,36 +3,62 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
-import { doc, setDoc } from "firebase/firestore";
-const id = crypto.randomUUID();
+import { setDoc, doc } from "firebase/firestore";
 
 export default function AddLoadPage() {
-  const router = useRouter();
   const [name, setName] = useState("");
-  const [field, setField] = useState(1);
+  const [field, setField] = useState("");
+  const router = useRouter();
 
-  const add = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     const user = auth.currentUser;
     if (!user) return router.replace("/login");
-    const id = uuid();
-    await setDoc(doc(db, `users/${user.uid}/loads/${id}`), { name, field });
+
+    // ✅ use crypto.randomUUID instead of uuid()
+    const id = crypto.randomUUID();
+
+    await setDoc(doc(db, `users/${user.uid}/loads/${id}`), {
+      name,
+      field: parseInt(field),
+    });
+
     router.push("/dashboard");
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-6">
-      <h1 className="text-2xl font-bold mb-4">Add Load</h1>
-      <div className="space-y-4 max-w-md">
-        <div>
-          <label className="block text-sm mb-1">Name</label>
-          <input className="w-full bg-gray-800 rounded px-3 py-2" value={name} onChange={e=>setName(e.target.value)} />
-        </div>
-        <div>
-          <label className="block text-sm mb-1">ThingSpeak Field (1,5,7)</label>
-          <input type="number" className="w-full bg-gray-800 rounded px-3 py-2" value={field} onChange={e=>setField(parseInt(e.target.value||"1"))} />
-        </div>
-        <button onClick={add} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">Save</button>
-      </div>
+    <div className="min-h-screen bg-black text-white flex items-center justify-center">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-gray-900 p-6 rounded-xl space-y-4 w-full max-w-sm"
+      >
+        <h1 className="text-xl font-semibold">Add Load</h1>
+
+        <input
+          type="text"
+          placeholder="Load Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full p-2 rounded bg-gray-800 text-white"
+          required
+        />
+
+        <input
+          type="number"
+          placeholder="Field Number"
+          value={field}
+          onChange={(e) => setField(e.target.value)}
+          className="w-full p-2 rounded bg-gray-800 text-white"
+          required
+        />
+
+        <button
+          type="submit"
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+        >
+          Save
+        </button>
+      </form>
     </div>
   );
 }
