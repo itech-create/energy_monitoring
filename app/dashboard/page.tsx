@@ -1,134 +1,140 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { db, auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { collection, onSnapshot, doc, updateDoc } from "firebase/firestore";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 
 type Device = {
   id: string;
   name: string;
   field: string;
-  power: number;
   status: "auto" | "on" | "off";
+  power?: number;
+  current?: number;
+  cost?: number;
 };
 
 export default function DashboardPage() {
   const [devices, setDevices] = useState<Device[]>([]);
-  const [totalPower, setTotalPower] = useState(0);
-  const [voltage, setVoltage] = useState(230);
-  const [limit, setLimit] = useState(1000);
-  const [newLimit, setNewLimit] = useState(1000);
+  const [globalLimit, setGlobalLimit] = useState<number>(1000);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const user = auth.currentUser;
-    if (!user) return;
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
 
     const colRef = collection(db, `users/${user.uid}/loads`);
-    const unsub = onSnapshot(colRef, (snap) => {
-      const items = snap.docs.map((d) => d.data() as Device);
+    const unsubFS = onSnapshot(colRef, (snap) => {
+      const items = snap.docs.map(
+        (d) => ({ id: d.id, ...(d.data() as Device) } as Device)
+      );
       setDevices(items);
-
-      const sum = items.reduce((acc, d) => acc + (d.power || 0), 0);
-      setTotalPower(sum);
+      setLoading(false);
     });
 
-    return () => unsub();
-  }, []);
+    return () => unsubFS();
+  }, [router]);
 
-  const handleControl = async (id: string, newStatus: "auto" | "on" | "off") => {
+  const handleControl = async (id: string, status: "auto" | "on" | "off") => {
     const user = auth.currentUser;
     if (!user) return;
-
-    const ref = doc(db, `users/${user.uid}/loads/${id}`);
-    await updateDoc(ref, { status: newStatus });
+    await updateDoc(doc(db, `users/${user.uid}/loads/${id}`), { status });
   };
 
-  const updateLimit = () => {
-    setLimit(newLimit);
-    // push to Firestore if ESP32 listens for global limit
-  };
+  const totalPower = devices.reduce((sum, d) => sum + (d.power || 0), 0);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
-      <h1 className="text-2xl font-bold mb-6">PowerPal Dashboard</h1>
+    <div className="p-6 space-y-6">
+      <h1 className="text-2xl font-bold text-white">Dashboard</h1>
 
-      {/* Stats Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card>
-          <CardContent className="p-4">
-            <h2 className="text-lg">Total Power</h2>
-            <p className="text-2xl font-bold">{totalPower.toFixed(2)} W</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <h2 className="text-lg">Average Voltage</h2>
-            <p className="text-2xl font-bold">{voltage.toFixed(2)} V</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <h2 className="text-lg">Estimated Cost (per hour)</h2>
-            <p className="text-2xl font-bold">
-              ${(totalPower * 0.18 / 1000).toFixed(2)}
-            </p>
-          </CardContent>
-        </Card>
+      {/* Global Limit */}
+      <div className="bg-gray-900 p-4 rounded-lg shadow">
+        <h2 className="text-lg font-semibold text-white">
+          Global Permissible Power Limit
+        </h2>
+        <input
+          type="number"
+          className="mt-2 p-2 rounded bg-gray-800 text-white w-full"
+          value={globalLimit}
+          onChange={(e) => setGlobalLimit(Number(e.target.value))}
+        />
       </div>
 
-      {/* Global Permissible Limit */}
-      <Card className="mb-6">
-        <CardContent className="p-4">
-          <h2 className="text-lg font-semibold">Global Permissible Power Limit</h2>
-          <div className="flex items-center gap-3 mt-2">
-            <span>Current Limit: {limit} W</span>
-            <input
-              type="number"
-              className="px-3 py-1 rounded bg-gray-700 text-white w-24"
-              value={newLimit}
-              onChange={(e) => setNewLimit(Number(e.target.value))}
-            />
-            <Button onClick={updateLimit}>Update Limit</Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Load Cards */}
+      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {devices.map((device) => (
-          <Card key={device.id}>
-            <CardContent className="p-4">
-              <h2 className="text-lg font-semibold">{device.name}</h2>
-              <p className="text-sm text-gray-400">
-                Power: {device.power ?? 0} W
-              </p>
+        <div className="bg-gray-800 p-4 rounded-lg shadow">
+          <h2 className="text-lg text-white">Total Power</h2>
+          <p className="text-2xl font-bold text-blue-400">
+            {totalPower.toFixed(2)} W
+          </p>
+        </div>
+        <div className="bg-gray-800 p-4 rounded-lg shadow">
+          <h2 className="text-lg text-white">Total Current</h2>
+          <p className="text-2xl font-bold text-green-400">
+            {devices.reduce((sum, d) => sum + (d.current || 0), 0).toFixed(2)} A
+          </p>
+        </div>
+        <div className="bg-gray-800 p-4 rounded-lg shadow">
+          <h2 className="text-lg text-white">Total Cost</h2>
+          <p className="text-2xl font-bold text-yellow-400">
+            ₦
+            {devices.reduce((sum, d) => sum + (d.cost || 0), 0).toFixed(2)}
+          </p>
+        </div>
+      </div>
 
-              <div className="flex gap-2 mt-3">
-                <Button
-                  variant={device.status === "auto" ? "default" : "outline"}
-                  onClick={() => handleControl(device.id, "auto")}
-                >
-                  Auto
-                </Button>
-                <Button
-                  variant={device.status === "on" ? "default" : "outline"}
-                  onClick={() => handleControl(device.id, "on")}
-                >
-                  On
-                </Button>
-                <Button
-                  variant={device.status === "off" ? "default" : "outline"}
-                  onClick={() => handleControl(device.id, "off")}
-                >
-                  Off
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+      {/* Loads */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {devices.map((device) => (
+          <div key={device.id} className="bg-gray-900 p-4 rounded-lg shadow">
+            <h2 className="text-xl font-bold text-white">{device.name}</h2>
+            <p className="text-gray-400">Field: {device.field}</p>
+            <p className="text-gray-400">
+              Power: {device.power?.toFixed(2) || 0} W
+            </p>
+            <p className="text-gray-400">
+              Current: {device.current?.toFixed(2) || 0} A
+            </p>
+            <p className="text-gray-400">Cost: ₦{device.cost?.toFixed(2) || 0}</p>
+
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => handleControl(device.id, "auto")}
+                className={`px-4 py-2 rounded ${
+                  device.status === "auto"
+                    ? "bg-blue-600"
+                    : "bg-gray-700 hover:bg-gray-600"
+                }`}
+              >
+                Auto
+              </button>
+              <button
+                onClick={() => handleControl(device.id, "on")}
+                className={`px-4 py-2 rounded ${
+                  device.status === "on"
+                    ? "bg-green-600"
+                    : "bg-gray-700 hover:bg-gray-600"
+                }`}
+              >
+                On
+              </button>
+              <button
+                onClick={() => handleControl(device.id, "off")}
+                className={`px-4 py-2 rounded ${
+                  device.status === "off"
+                    ? "bg-red-600"
+                    : "bg-gray-700 hover:bg-gray-600"
+                }`}
+              >
+                Off
+              </button>
+            </div>
+          </div>
         ))}
       </div>
     </div>
