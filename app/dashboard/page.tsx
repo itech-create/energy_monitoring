@@ -6,6 +6,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { onSnapshot, collection } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { Zap, Power, Activity, TrendingUp, Settings, Gauge, ChevronRight } from "lucide-react";
+const id = crypto.randomUUID();
 
 const THINGSPEAK_CHANNEL_ID = process.env.NEXT_PUBLIC_THINGSPEAK_CHANNEL_ID as string;
 const THINGSPEAK_READ_API_KEY = process.env.NEXT_PUBLIC_THINGSPEAK_READ_API_KEY as string;
