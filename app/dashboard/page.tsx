@@ -44,33 +44,43 @@ export default function DashboardPage() {
   };
 
   // Auth + Firestore devices
-  useEffect(() => {
-    const unsubAuth = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        router.replace("/login");
-      } else {
-        const colRef = collection(db, `users/${user.uid}/loads`);
-        const unsubFS = onSnapshot(colRef, (snap) => {
-          const items = snap.docs.map((d) => ({
-            id: d.id, // ✅ only source of id
-            ...(d.data() as Device),
-          }));
+useEffect(() => {
+  const unsubAuth = onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      router.replace("/login");
+    } else {
+      const colRef = collection(db, `users/${user.uid}/loads`);
+      const unsubFS = onSnapshot(
+        colRef,
+        (snap) => {
+          // ✅ exclude id from spread to avoid "id specified more than once"
+          const items = snap.docs.map((d) => {
+            const data = d.data() as Omit<Device, "id">;
+            return { id: d.id, ...data };
+          }) as Device[];
+
           setDevices(items);
           setLoading(false);
-        }, (err) => {
+        },
+        (err) => {
           console.error("Firestore loads error:", err);
           setLoading(false);
-        });
+        }
+      );
 
-        fetchTS();
-        const intv = setInterval(fetchTS, 20000);
+      // fetch ThingSpeak periodically for graphs/voltage/etc.
+      fetchTS();
+      const intv = setInterval(fetchTS, 20000);
 
-        return () => { unsubFS(); clearInterval(intv); };
-      }
-    });
-    return () => unsubAuth();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      return () => {
+        unsubFS();
+        clearInterval(intv);
+      };
+    }
+  });
+  return () => unsubAuth();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
 
   const fetchTS = async () => {
     if (!THINGSPEAK_CHANNEL_ID || !THINGSPEAK_READ_API_KEY) return;
