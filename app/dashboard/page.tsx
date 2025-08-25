@@ -309,22 +309,19 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Load Cards */}
+                {/* Load Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {displayDevices.map((item) => {
             const loadFactor =
               thingSpeakData.field4 > 0
                 ? Math.round((item.power / thingSpeakData.field4) * 100)
                 : 0;
-            const displayLoadFactor = Math.min(
-              100,
-              Math.max(0, loadFactor)
-            );
+            const displayLoadFactor = Math.min(100, Math.max(0, loadFactor));
             const statusColor =
               item.status === "active"
                 ? "bg-green-900 text-green-400 border border-green-500"
                 : "bg-yellow-900 text-yellow-400 border border-yellow-500";
-
+        
             return (
               <div
                 key={item.id}
@@ -339,7 +336,19 @@ export default function DashboardPage() {
                     {item.status.toUpperCase()}
                   </span>
                 </div>
-
+        
+                {/* NEW: Live numerical readings */}
+                <div className="grid grid-cols-2 gap-4 mt-3 text-white">
+                  <div>
+                    <p className="text-sm text-gray-400">Current</p>
+                    <p className="text-lg font-semibold">{item.current.toFixed(2)} A</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-400">Power</p>
+                    <p className="text-lg font-semibold">{item.power.toFixed(2)} W</p>
+                  </div>
+                </div>
+        
                 {/* Manual Control Buttons */}
                 <div className="flex justify-between mt-4">
                   <button
