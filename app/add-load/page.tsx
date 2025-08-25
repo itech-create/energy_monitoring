@@ -32,7 +32,7 @@ export default function AddLoadPage() {
         });
 
         alert("Load added successfully!");
-        router.push("/");
+        router.push("/dashboard");
       } catch (error) {
         console.error("Error adding load:", error);
         alert("Failed to add load. Please try again.");
