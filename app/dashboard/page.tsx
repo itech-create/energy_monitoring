@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
-import { collection, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
 type Device = {
   id: string;
   name: string;
   field: string;
-  status: "auto" | "on" | "off";
   power: number;
   current: number;
   cost: number;
@@ -19,8 +18,10 @@ export default function DashboardPage() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [globalLimit, setGlobalLimit] = useState<number>(1000);
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
   const router = useRouter();
 
+  // 🔹 Fetch user loads from Firestore
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) {
@@ -31,30 +32,14 @@ export default function DashboardPage() {
     const colRef = collection(db, `users/${user.uid}/loads`);
     const unsubFS = onSnapshot(colRef, (snap) => {
       const items: Device[] = snap.docs.map((d) => {
-        const raw = d.data() as Partial<Device> & { id?: string };
-
-        // Remove any 'id' coming from Firestore data to avoid duplicate key overwrite
-        const {
-          id: _ignore,
-          name,
-          field,
-          status,
-          power,
-          current,
-          cost,
-          ...rest
-        } = raw;
-
+        const raw = d.data() as Partial<Device>;
         return {
           id: d.id,
-          name: name ?? "Unnamed Load",
-          field: field ?? "",
-          status: (status ?? "auto") as Device["status"],
-          power: Number(power ?? 0),
-          current: Number(current ?? 0),
-          cost: Number(cost ?? 0),
-          // keep any extra fields out of the strongly typed object
-          ...({} as Record<string, never>)
+          name: raw.name ?? "Unnamed Load",
+          field: raw.field ?? "",
+          power: Number(raw.power ?? 0),
+          current: Number(raw.current ?? 0),
+          cost: Number(raw.cost ?? 0),
         };
       });
 
@@ -65,10 +50,37 @@ export default function DashboardPage() {
     return () => unsubFS();
   }, [router]);
 
-  const handleControl = async (id: string, status: "auto" | "on" | "off") => {
-    const user = auth.currentUser;
-    if (!user) return;
-    await updateDoc(doc(db, `users/${user.uid}/loads/${id}`), { status });
+  // 🔹 Fetch current permissible limit from ThingSpeak (field 4)
+  useEffect(() => {
+    async function fetchLimit() {
+      try {
+        const res = await fetch(
+          `https://api.thingspeak.com/channels/3021539/fields/4.json?api_key=B5106LV3GVBOXRSO&results=1`
+        );
+        const data = await res.json();
+        const lastVal = data.feeds?.[0]?.field4;
+        if (lastVal) setGlobalLimit(Number(lastVal));
+      } catch (err) {
+        console.error("Error fetching limit:", err);
+      }
+    }
+    fetchLimit();
+  }, []);
+
+  // 🔹 Update permissible limit on ThingSpeak (field 4)
+  const updateLimit = async () => {
+    setUpdating(true);
+    try {
+      const res = await fetch(
+        `https://api.thingspeak.com/update?api_key=OV54HOWGUQ71NXMP&field4=${globalLimit}`
+      );
+      if (res.ok) {
+        console.log("Limit updated:", globalLimit);
+      }
+    } catch (err) {
+      console.error("Error updating limit:", err);
+    }
+    setUpdating(false);
   };
 
   const totalPower = devices.reduce((sum, d) => sum + (d.power || 0), 0);
@@ -100,15 +112,21 @@ export default function DashboardPage() {
         <h2 className="text-lg font-semibold text-white">
           Global Permissible Power Limit
         </h2>
-        <input
-          type="number"
-          className="mt-2 p-2 rounded bg-gray-800 text-white w-full"
+        <div className="flex gap-2 mt-2">
+          <input
+            type="number"
+            className="p-2 rounded bg-gray-800 text-white w-full"
             value={Number.isFinite(globalLimit) ? globalLimit : 0}
-          onChange={(e) => setGlobalLimit(Number(e.target.value || 0))}
-        />
-        <p className="text-sm text-gray-400 mt-2">
-          Used for display/reference. (Persisting this can be added later if you like.)
-        </p>
+            onChange={(e) => setGlobalLimit(Number(e.target.value || 0))}
+          />
+          <button
+            onClick={updateLimit}
+            disabled={updating}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded shadow"
+          >
+            {updating ? "Updating…" : "Update"}
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -137,25 +155,16 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {devices.map((device) => {
           const loadFactor =
-            globalLimit > 0 ? Math.min(100, Math.round((device.power / globalLimit) * 100)) : 0;
+            globalLimit > 0
+              ? Math.min(100, Math.round((device.power / globalLimit) * 100))
+              : 0;
 
           return (
-            <div key={device.id} className="bg-gray-900 p-4 rounded-lg shadow border border-gray-800">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-white">{device.name}</h2>
-                <span
-                  className={`text-xs px-2 py-1 rounded ${
-                    device.status === "on"
-                      ? "bg-green-900 text-green-400 border border-green-500"
-                      : device.status === "off"
-                      ? "bg-red-900 text-red-400 border border-red-500"
-                      : "bg-blue-900 text-blue-400 border border-blue-500"
-                  }`}
-                >
-                  {device.status.toUpperCase()}
-                </span>
-              </div>
-
+            <div
+              key={device.id}
+              className="bg-gray-900 p-4 rounded-lg shadow border border-gray-800"
+            >
+              <h2 className="text-xl font-bold text-white">{device.name}</h2>
               <p className="text-gray-400 mt-1">Field: {device.field}</p>
 
               <div className="grid grid-cols-2 gap-4 mt-3">
@@ -179,7 +188,9 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-400">Load Factor</p>
-                  <p className="text-lg font-semibold text-white">{loadFactor}%</p>
+                  <p className="text-lg font-semibold text-white">
+                    {loadFactor}%
+                  </p>
                 </div>
               </div>
 
@@ -191,40 +202,6 @@ export default function DashboardPage() {
                     style={{ width: `${loadFactor}%` }}
                   />
                 </div>
-              </div>
-
-              {/* Controls */}
-              <div className="flex gap-2 mt-4">
-                <button
-                  onClick={() => handleControl(device.id, "auto")}
-                  className={`px-4 py-2 rounded ${
-                    device.status === "auto"
-                      ? "bg-blue-600"
-                      : "bg-gray-700 hover:bg-gray-600"
-                  } text-white`}
-                >
-                  Auto
-                </button>
-                <button
-                  onClick={() => handleControl(device.id, "on")}
-                  className={`px-4 py-2 rounded ${
-                    device.status === "on"
-                      ? "bg-green-600"
-                      : "bg-gray-700 hover:bg-gray-600"
-                  } text-white`}
-                >
-                  On
-                </button>
-                <button
-                  onClick={() => handleControl(device.id, "off")}
-                  className={`px-4 py-2 rounded ${
-                    device.status === "off"
-                      ? "bg-red-600"
-                      : "bg-gray-700 hover:bg-gray-600"
-                  } text-white`}
-                >
-                  Off
-                </button>
               </div>
             </div>
           );
