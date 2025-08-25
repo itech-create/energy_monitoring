@@ -348,44 +348,7 @@ export default function DashboardPage() {
                     <p className="text-lg font-semibold">{item.power.toFixed(2)} W</p>
                   </div>
                 </div>
-        
-                {/* Manual Control Buttons */}
-                <div className="flex justify-between mt-4">
-                  <button
-                    onClick={() =>
-                      setRelayState(
-                        item.field === 1 ? 1 : item.field === 5 ? 2 : 3,
-                        "on"
-                      )
-                    }
-                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded"
-                  >
-                    ON
-                  </button>
-                  <button
-                    onClick={() =>
-                      setRelayState(
-                        item.field === 1 ? 1 : item.field === 5 ? 2 : 3,
-                        "off"
-                      )
-                    }
-                    className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded"
-                  >
-                    OFF
-                  </button>
-                  <button
-                    onClick={() =>
-                      setRelayState(
-                        item.field === 1 ? 1 : item.field === 5 ? 2 : 3,
-                        "auto"
-                      )
-                    }
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded"
-                  >
-                    AUTO
-                  </button>
-                </div>
-              </div>
+               </div>
             );
           })}
         </div>
