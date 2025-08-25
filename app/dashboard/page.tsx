@@ -1,113 +1,93 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { auth, db } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
-import { useRouter } from "next/navigation";
 
-type Device = {
-  id: string;
-  name: string;
-  field: string;
-  power: number;
-  current: number;
-  cost: number;
+type ThingSpeakData = {
+  voltage: number;
+  curr1: number;
+  curr2: number;
+  curr3: number;
+  power1: number;
+  power2: number;
+  power3: number;
+  permissibleLimit: number;
 };
 
 export default function DashboardPage() {
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [globalLimit, setGlobalLimit] = useState<number>(1000);
+  const [data, setData] = useState<ThingSpeakData | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
-  const router = useRouter();
+  const [globalLimit, setGlobalLimit] = useState<number>(1000);
 
-  // 🔹 Fetch user loads from Firestore
-  useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
+  const READ_KEY = "B5106LV3GVBOXRSO";   // ✅ ThingSpeak Read Key
+  const WRITE_KEY = "OV54HOWGUQ71NXMP";  // ✅ ThingSpeak Write Key
+  const CHANNEL_ID = "3021539";
 
-    const colRef = collection(db, `users/${user.uid}/loads`);
-    const unsubFS = onSnapshot(colRef, (snap) => {
-      const items: Device[] = snap.docs.map((d) => {
-        const raw = d.data() as Partial<Device>;
-        return {
-          id: d.id,
-          name: raw.name ?? "Unnamed Load",
-          field: raw.field ?? "",
-          power: Number(raw.power ?? 0),
-          current: Number(raw.current ?? 0),
-          cost: Number(raw.cost ?? 0),
-        };
-      });
-
-      setDevices(items);
-      setLoading(false);
-    });
-
-    return () => unsubFS();
-  }, [router]);
-
-  // 🔹 Fetch current permissible limit from ThingSpeak (field 4)
-  useEffect(() => {
-    async function fetchLimit() {
-      try {
-        const res = await fetch(
-          `https://api.thingspeak.com/channels/3021539/fields/4.json?api_key=B5106LV3GVBOXRSO&results=1`
-        );
-        const data = await res.json();
-        const lastVal = data.feeds?.[0]?.field4;
-        if (lastVal) setGlobalLimit(Number(lastVal));
-      } catch (err) {
-        console.error("Error fetching limit:", err);
-      }
-    }
-    fetchLimit();
-  }, []);
-
-  // 🔹 Update permissible limit on ThingSpeak (field 4)
-  const updateLimit = async () => {
-    setUpdating(true);
+  // 🔹 Fetch latest values from ThingSpeak
+  async function fetchData() {
     try {
       const res = await fetch(
-        `https://api.thingspeak.com/update?api_key=OV54HOWGUQ71NXMP&field4=${globalLimit}`
+        `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?api_key=${READ_KEY}&results=1`
       );
-      if (res.ok) {
-        console.log("Limit updated:", globalLimit);
-      }
+      const json = await res.json();
+      const feed = json.feeds[0];
+
+      const parsed: ThingSpeakData = {
+        curr1: Number(feed.field1 || 0),
+        voltage: Number(feed.field2 || 0),
+        power1: Number(feed.field3 || 0),
+        permissibleLimit: Number(feed.field4 || 0),
+        curr2: Number(feed.field5 || 0),
+        power2: Number(feed.field6 || 0),
+        curr3: Number(feed.field7 || 0),
+        power3: Number(feed.field8 || 0),
+      };
+
+      setData(parsed);
+      setGlobalLimit(parsed.permissibleLimit || 1000);
+      setLoading(false);
+    } catch (err) {
+      console.error("Error fetching ThingSpeak data:", err);
+    }
+  }
+
+  // 🔹 Update permissible limit (field4)
+  async function updateLimit() {
+    setUpdating(true);
+    try {
+      await fetch(
+        `https://api.thingspeak.com/update?api_key=${WRITE_KEY}&field4=${globalLimit}`
+      );
+      console.log("Permissible limit updated:", globalLimit);
     } catch (err) {
       console.error("Error updating limit:", err);
     }
     setUpdating(false);
-  };
+  }
 
-  const totalPower = devices.reduce((sum, d) => sum + (d.power || 0), 0);
-  const totalCurrent = devices.reduce((sum, d) => sum + (d.current || 0), 0);
-  const totalCost = devices.reduce((sum, d) => sum + (d.cost || 0), 0);
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 20000); // refresh every 20s
+    return () => clearInterval(interval);
+  }, []);
 
-  if (loading) {
+  if (loading || !data) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <div className="text-lg animate-pulse">Loading dashboard…</div>
+        <div className="text-lg animate-pulse">Loading ThingSpeak data…</div>
       </div>
     );
   }
 
+  // 🔹 Derived totals
+  const totalPower = data.power1 + data.power2 + data.power3;
+  const totalCurrent = data.curr1 + data.curr2 + data.curr3;
+
   return (
     <div className="p-6 space-y-6 bg-black min-h-screen">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-        <button
-          onClick={() => router.push("/add-load")}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded shadow"
-        >
-          ➕ Add Load
-        </button>
-      </div>
+      <h1 className="text-2xl font-bold text-white">Energy Monitoring Dashboard</h1>
 
-      {/* Global Limit */}
+      {/* Global Limit Control */}
       <div className="bg-gray-900 p-4 rounded-lg shadow border border-gray-800">
         <h2 className="text-lg font-semibold text-white">
           Global Permissible Power Limit
@@ -116,7 +96,7 @@ export default function DashboardPage() {
           <input
             type="number"
             className="p-2 rounded bg-gray-800 text-white w-full"
-            value={Number.isFinite(globalLimit) ? globalLimit : 0}
+            value={globalLimit}
             onChange={(e) => setGlobalLimit(Number(e.target.value || 0))}
           />
           <button
@@ -130,7 +110,13 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-gray-800 p-4 rounded-lg shadow border border-gray-700">
+          <h2 className="text-lg text-white">Mains Voltage</h2>
+          <p className="text-2xl font-bold text-purple-400">
+            {data.voltage.toFixed(1)} V
+          </p>
+        </div>
         <div className="bg-gray-800 p-4 rounded-lg shadow border border-gray-700">
           <h2 className="text-lg text-white">Total Power</h2>
           <p className="text-2xl font-bold text-blue-400">
@@ -144,68 +130,30 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="bg-gray-800 p-4 rounded-lg shadow border border-gray-700">
-          <h2 className="text-lg text-white">Total Cost</h2>
+          <h2 className="text-lg text-white">Permissible Limit</h2>
           <p className="text-2xl font-bold text-yellow-400">
-            ₦{totalCost.toFixed(2)}
+            {globalLimit} W
           </p>
         </div>
       </div>
 
-      {/* Loads */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {devices.map((device) => {
-          const loadFactor =
-            globalLimit > 0
-              ? Math.min(100, Math.round((device.power / globalLimit) * 100))
-              : 0;
-
-          return (
-            <div
-              key={device.id}
-              className="bg-gray-900 p-4 rounded-lg shadow border border-gray-800"
-            >
-              <h2 className="text-xl font-bold text-white">{device.name}</h2>
-              <p className="text-gray-400 mt-1">Field: {device.field}</p>
-
-              <div className="grid grid-cols-2 gap-4 mt-3">
-                <div>
-                  <p className="text-sm text-gray-400">Power</p>
-                  <p className="text-lg font-semibold text-white">
-                    {device.power.toFixed(2)} W
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400">Current</p>
-                  <p className="text-lg font-semibold text-white">
-                    {device.current.toFixed(2)} A
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400">Cost</p>
-                  <p className="text-lg font-semibold text-white">
-                    ₦{device.cost.toFixed(2)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400">Load Factor</p>
-                  <p className="text-lg font-semibold text-white">
-                    {loadFactor}%
-                  </p>
-                </div>
-              </div>
-
-              {/* Load Factor Bar */}
-              <div className="mt-2">
-                <div className="w-full bg-gray-700 h-2 rounded-full">
-                  <div
-                    className="h-2 bg-gradient-to-r from-blue-500 to-blue-700 rounded-full transition-all"
-                    style={{ width: `${loadFactor}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          );
-        })}
+      {/* Individual Loads */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-gray-900 p-4 rounded-lg shadow border border-gray-800">
+          <h2 className="text-lg font-bold text-white">Load 1</h2>
+          <p className="text-gray-400">Current: {data.curr1.toFixed(2)} A</p>
+          <p className="text-gray-400">Power: {data.power1.toFixed(2)} W</p>
+        </div>
+        <div className="bg-gray-900 p-4 rounded-lg shadow border border-gray-800">
+          <h2 className="text-lg font-bold text-white">Load 2</h2>
+          <p className="text-gray-400">Current: {data.curr2.toFixed(2)} A</p>
+          <p className="text-gray-400">Power: {data.power2.toFixed(2)} W</p>
+        </div>
+        <div className="bg-gray-900 p-4 rounded-lg shadow border border-gray-800">
+          <h2 className="text-lg font-bold text-white">Load 3</h2>
+          <p className="text-gray-400">Current: {data.curr3.toFixed(2)} A</p>
+          <p className="text-gray-400">Power: {data.power3.toFixed(2)} W</p>
+        </div>
       </div>
     </div>
   );
